@@ -1,61 +1,78 @@
-import time
-from numba import jit
+import threading
+import types
+
+import duckdb
+from duckdb.typing import *
 
 
-def calculate_z_serial_purepython(max_iter, zs, cs):
-    output = [0] * len(zs)
-    for i in range(len(zs)):
-        n = 0
-        z = zs[i]
-        c = cs[i]
-        while abs(z) < 2 and n < max_iter:
-            z = z * z + c
-            n += 1
-        output[i] = n
-    return output
+import pyarrow as pa
+import pyarrow.compute as pc
+
+import numpy as np
+import numba
+from numba.experimental import jitclass
+
+spec = [
+    ("missing", numba.uint8[:]),
+    ("data", numba.float64[:]),
+]
 
 
-def calc_pure_python(desired_width, max_iterations):
-    x1, x2 = -1.8, 1.8
-    y1, y2 = -1.8, 1.8
-    c_real, c_imag = -0.62772, -0.42193
-    # create a list of complex coordinates and complex parameters, build a
-    # julia set
-    x_step = (x2 - x1) / desired_width
-    y_step = (y1 - y2) / desired_width
-    x = []
-    y = []
-    ycoord = y2
-    while ycoord > y1:
-        y.append(ycoord)
-        ycoord += y_step
-    xcoord = x1
-    while xcoord < x2:
-        x.append(xcoord)
-        xcoord += x_step
+@jitclass(spec)
+class NumbaFloat64Array:
+    def __init__(self, missing, data):
+        self.missing = missing
+        self.data = data
 
-    zs = []
-    cs = []
-    for ycoord in y:
-        for xcoord in x:
-            zs.append(complex(xcoord, ycoord))
-            cs.append(complex(c_real, c_imag))
 
-    print("Length of x:", len(x))
-    print("Total elements:", len(zs))
-    start_time = time.time()
-    output = calculate_z_serial_purepython(max_iterations, zs, cs)
-    end_time = time.time()
-    time_taken_secs = end_time - start_time
-    print(
-        f"{calculate_z_serial_purepython.__name__} took {time_taken_secs} seconds"
+def _make(cls, pa_arr):
+    assert isinstance(pa_arr, pa.FloatingPointArray)
+    buffers = pa_arr.buffers()
+    return cls(
+        np.asarray(buffers[0]).view(np.uint8),
+        np.asarray(buffers[1]).view(np.float64),
     )
-    print(100 * sum(1 for n in output if n > 0) / sum(1 for n in output))
-    assert sum(output) == 33219980
+
+
+NumbaFloat64Array.make = types.MethodType(_make, NumbaFloat64Array)
+
+
+@numba.jit(nopython=True, nogil=True, parallel=False)
+def _add(xs, ys, out, len_):
+    for i in range(len_):
+        out[i] = xs[i] + ys[i]
+
+
+threads = set()
+
+
+def add_cols(xs, ys):
+    tid = threading.get_native_id()
+    threads.add(tid)
+    len_ = len(xs)
+    out = np.empty((len_,))
+    _add(xs.to_numpy(), ys.to_numpy(), out, len_)
+    return pa.array(out)
 
 
 def main():
-    calc_pure_python(desired_width=1000, max_iterations=300)
+    conn = duckdb.connect()
+    conn.create_function(
+        "add_cols", add_cols, [DOUBLE, DOUBLE], DOUBLE, type="arrow"
+    )
+    conn.sql("create table tbl(xs double, ys double)")
+    n = 1000000
+    conn.sql(
+        f"""
+        insert into tbl(xs,ys)
+        select range::double, range::double from range(1,{n+1})
+    """
+    )
+    conn.sql(
+        f"""select sum(res) / {n} as s from (
+        select add_cols(xs, ys) as res from tbl)"""
+    ).show()
+    print(threads)
 
 
 if __name__ == "__main__":
