@@ -27,7 +27,7 @@ def calc_haversine_dist_py_jit(x0, y0, x1, y1):
     return distance
 
 
-def calc_haversine_dist_py(x0, y0, x1, y1):
+def calc_haversine_dist_py_nojit(x0, y0, x1, y1):
     # x -> longitude
     # y -> latitude
     EARTH_RADIUS = 6372.8  # km
@@ -49,11 +49,14 @@ def calc_haversine_dist_py(x0, y0, x1, y1):
     return distance
 
 
-def calc(points_parquet_filepath: str) -> float:
+def calc(points_parquet_filepath: str, use_jit_version=False) -> float:
+    fn = calc_haversine_dist_py_nojit
+    if use_jit_version:
+        fn = calc_haversine_dist_py_jit
     conn = duckdb.connect()
     conn.create_function(
         "haversine_dist",
-        calc_haversine_dist_py,
+        fn,
         [DOUBLE, DOUBLE, DOUBLE, DOUBLE],
         DOUBLE,
     )

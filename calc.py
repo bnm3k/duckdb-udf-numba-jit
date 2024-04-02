@@ -1,3 +1,4 @@
+import os
 import time
 import argparse
 
@@ -15,10 +16,15 @@ def get_calc_fn(method):
         from method_udf_numba import calc
 
         return calc
+    elif method == "udf_rs":
+        from method_udf_numba import calc
+
+        return calc
     return None
 
 
 def main():
+    print(f"pid={os.getpid()}")
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="file containing points")
     parser.add_argument("-m", "--method", help=" method to use for calc")
