@@ -2,6 +2,29 @@ import math
 
 import duckdb
 from duckdb.typing import DOUBLE
+import numpy as np
+import numba
+
+
+@numba.jit(nopython=True, nogil=True, parallel=False)
+def calc_haversine_dist_py_jit(x0, y0, x1, y1):
+    # x -> longitude
+    # y -> latitude
+    EARTH_RADIUS = 6372.8  # km
+
+    p0_latitude = np.radians(y0)
+    p1_latitude = np.radians(y1)
+
+    delta_latitude = np.radians(y0 - y1)
+    delta_longitude = np.radians(x0 - x1)
+
+    central_angle_inner = np.square(np.sin(delta_latitude / 2.0)) + np.cos(
+        p0_latitude
+    ) * np.cos(p1_latitude) * np.square(np.sin(delta_longitude / 2.0))
+    central_angle = 2.0 * np.arcsin(np.sqrt(central_angle_inner))
+
+    distance = EARTH_RADIUS * central_angle
+    return distance
 
 
 def calc_haversine_dist_py(x0, y0, x1, y1):
