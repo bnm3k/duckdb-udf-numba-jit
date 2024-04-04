@@ -8,11 +8,11 @@ def get_calc_fn(method):
     if method.startswith(udf_prefix):
         udf_type = method[len(udf_prefix) :]
         if udf_type == "rs":
-            from method_udf_numba import calc
+            from method_udf_rs import calc
 
             return calc
         else:  # udf_numba, udf_cuda, udf_vec, "udf_py", "udf_py_jit"
-            from method_udf_numba import get_calc
+            from method_udf import get_calc
 
             calc = get_calc(udf_type)
 
@@ -21,7 +21,8 @@ def get_calc_fn(method):
         from method_duckdb_sql import calc
 
         return calc
-    return None
+    else:
+        return None
 
 
 def main():
