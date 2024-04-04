@@ -1,3 +1,4 @@
+import math
 import time
 
 import duckdb
@@ -5,28 +6,31 @@ import numpy as np
 from numba import float64, vectorize, jit
 import pyarrow.parquet as pq
 
-spec = [float64(float64, float64, float64, float64)]
 
-
-@vectorize(spec, nopython=True, target="parallel")
-def get_dist(x0, y0, x1, y1):
+def _get_dist(x0, y0, x1, y1):
     # x -> longitude
     # y -> latitude
     EARTH_RADIUS = 6372.8  # km
 
-    p0_latitude = np.radians(y0)
-    p1_latitude = np.radians(y1)
+    p0_latitude = math.radians(y0)
+    p1_latitude = math.radians(y1)
 
-    delta_latitude = np.radians(y0 - y1)
-    delta_longitude = np.radians(x0 - x1)
+    delta_latitude = math.radians(y0 - y1)
+    delta_longitude = math.radians(x0 - x1)
 
-    central_angle_inner = np.square(np.sin(delta_latitude / 2.0)) + np.cos(
+    central_angle_inner = (math.sin(delta_latitude / 2.0)) ** 2 + math.cos(
         p0_latitude
-    ) * np.cos(p1_latitude) * np.square(np.sin(delta_longitude / 2.0))
-    central_angle = 2.0 * np.arcsin(np.sqrt(central_angle_inner))
+    ) * math.cos(p1_latitude) * (math.sin(delta_longitude / 2.0) ** 2)
+
+    central_angle = 2.0 * math.asin(math.sqrt(central_angle_inner))
 
     distance = EARTH_RADIUS * central_angle
     return distance
+
+
+spec = [float64(float64, float64, float64, float64)]
+get_dist_cuda = vectorize(spec, target="cuda")(_get_dist)
+get_dist_parallel = vectorize(spec, nopython=True, target="parallel")(_get_dist)
 
 
 @jit(nopython=True, nogil=True, parallel=True)
@@ -35,7 +39,7 @@ def get_avg(nums):
 
 
 def calc(args) -> float:
-    dists = get_dist(*args)
+    dists = get_dist_cuda(*args)
     avg = get_avg(dists)
     return avg
 
