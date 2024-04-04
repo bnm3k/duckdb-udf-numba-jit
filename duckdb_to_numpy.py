@@ -21,8 +21,8 @@ def get_avg(nums):
     return np.mean(nums)
 
 
-def calc(args) -> float:
-    dists = get_dist_cuda(*args)
+def calc(args, get_dist) -> float:
+    dists = get_dist(*args)
     avg = get_avg(dists)
     return avg
 
@@ -45,10 +45,17 @@ def read_args(points_parquet_filepath: str, reader):
 
 
 def main():
-    print(f"Threading layer: {threading_layer()}")
+    use_cuda = True
     input_filepath = f"data/points_10M.parquet"
+
+    if use_cuda:
+        print("cuda")
+        get_dist = get_dist_cuda
+    else:
+        print(f"Threading layer: {threading_layer()}")
+        get_dist = get_dist_parallel
     # start = time.time()
-    res = calc(read_args(input_filepath, "duckdb"))
+    res = calc(read_args(input_filepath, "duckdb"), get_dist)
     print(res)
     # end = time.time()
     # print(f"took: {end - start}")
