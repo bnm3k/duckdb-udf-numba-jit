@@ -1,14 +1,10 @@
+import time
 import math
-from cupy import who
-
-import duckdb
-from duckdb.typing import DOUBLE
-
-
-import pyarrow as pa
 
 import numpy as np
-import numba
+import pyarrow as pa
+import duckdb
+from duckdb.typing import DOUBLE
 from numba import jit, vectorize, float64
 
 
@@ -145,13 +141,15 @@ def get_calc(udf_type):
 
 
 def main():
-    n = "10"
-    points_parquet_filepath = f"data/points_{n}.parquet"
+    points_parquet_filepath = f"data/points_10M.parquet"
     udf_type = "numba"
     calc = get_calc(udf_type)
     assert calc is not None
+    start = time.time()
     res = calc(points_parquet_filepath)
+    end = time.time()
     print(res)
+    print(f"took: {end - start}")
 
 
 if __name__ == "__main__":

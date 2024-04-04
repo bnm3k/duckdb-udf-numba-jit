@@ -23,8 +23,7 @@ def calc(points_parquet_filepath: str) -> float:
 
 
 def main():
-    n = "10"
-    points_parquet_filepath = f"data/points_{n}.parquet"
+    points_parquet_filepath = f"data/points_10M.parquet"
     res = calc(points_parquet_filepath)
     print(res)
 
