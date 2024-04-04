@@ -47,11 +47,11 @@ def main():
         print(f"Invalid method: {method}")
         exit(1)
 
-    start = time.time()
+    # start = time.time()
     res = calc(input_filepath)
-    end = time.time()
+    # end = time.time()
+    # print(f"Time taken: {end - start}")
     print(res)
-    print(f"Time taken: {end - start}")
 
 
 if __name__ == "__main__":

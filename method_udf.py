@@ -9,7 +9,7 @@ from numba import jit, vectorize, float64
 
 
 @jit(nopython=True, nogil=True, parallel=False)
-def _calc_haversine_dist(x0, y0, x1, y1, out, len_):
+def _calc_haversine_dist_numba(x0, y0, x1, y1, out, len_):
     # x -> longitude
     # y -> latitude
     EARTH_RADIUS = 6372.8  # km
@@ -30,7 +30,7 @@ def _calc_haversine_dist(x0, y0, x1, y1, out, len_):
         out[i] = distance
 
 
-def _calc_haversine_dist_py(x0, y0, x1, y1):
+def _calc_haversine_dist(x0, y0, x1, y1):
     # x -> longitude
     # y -> latitude
     EARTH_RADIUS = 6372.8  # km
@@ -54,15 +54,13 @@ def _calc_haversine_dist_py(x0, y0, x1, y1):
 spec = [float64(float64, float64, float64, float64)]
 
 _calc_haversine_dist_vec = vectorize(spec, nopython=True, target="cpu")(
-    _calc_haversine_dist_py
+    _calc_haversine_dist
 )
 
-_calc_haversine_dist_cuda = vectorize(spec, target="cuda")(
-    _calc_haversine_dist_py
-)
+_calc_haversine_dist_cuda = vectorize(spec, target="cuda")(_calc_haversine_dist)
 
 _calc_haversine_dist_py_jit = jit(nopython=True, nogil=True, parallel=False)(
-    _calc_haversine_dist_py
+    _calc_haversine_dist
 )
 
 
@@ -75,7 +73,7 @@ def get_calc(udf_type):
             len_ = len(x0)
             out = np.empty((len_,))
             vs = tuple(v.to_numpy() for v in (x0, y0, x1, y1))
-            _calc_haversine_dist(*vs, out=out, len_=len_)
+            _calc_haversine_dist_numba(*vs, out=out, len_=len_)
             return pa.array(out)
 
         fn = fn_numba
@@ -86,7 +84,7 @@ def get_calc(udf_type):
             )
         )
     elif udf_type == "py" or udf_type == "py_jit":
-        fn = _calc_haversine_dist_py
+        fn = _calc_haversine_dist
         if udf_type == "py_jit":
             fn = _calc_haversine_dist_py_jit
         type_ = "native"
