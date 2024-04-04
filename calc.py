@@ -4,20 +4,21 @@ import argparse
 
 
 def get_calc_fn(method):
-    if method == "udf_py":
-        from method_udf_py import calc
+    udf_prefix = "udf_"
+    if method.startswith(udf_prefix):
+        udf_type = method[len(udf_prefix) :]
+        if udf_type == "rs":
+            from method_udf_numba import calc
 
-        return calc
+            return calc
+        else:  # udf_numba, udf_cuda, udf_vec, "udf_py", "udf_py_jit"
+            from method_udf_numba import get_calc
+
+            calc = get_calc(udf_type)
+
+            return calc
     elif method == "duckdb_sql":
         from method_duckdb_sql import calc
-
-        return calc
-    elif method == "udf_numba":
-        from method_udf_numba import calc
-
-        return calc
-    elif method == "udf_rs":
-        from method_udf_numba import calc
 
         return calc
     return None
