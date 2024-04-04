@@ -30,31 +30,7 @@ def _calc_haversine_dist(x0, y0, x1, y1, out, len_):
         out[i] = distance
 
 
-spec = [float64(float64, float64, float64, float64)]
-
-
-@vectorize(spec, nopython=True, target="cpu")
-def _calc_haversine_dist_vec(x0, y0, x1, y1):
-    # x -> longitude
-    # y -> latitude
-    EARTH_RADIUS = 6372.8  # km
-
-    p0_latitude = np.radians(y0)
-    p1_latitude = np.radians(y1)
-
-    delta_latitude = np.radians(y0 - y1)
-    delta_longitude = np.radians(x0 - x1)
-
-    central_angle_inner = np.square(np.sin(delta_latitude / 2.0)) + np.cos(
-        p0_latitude
-    ) * np.cos(p1_latitude) * np.square(np.sin(delta_longitude / 2.0))
-    central_angle = 2.0 * np.arcsin(np.sqrt(central_angle_inner))
-
-    distance = EARTH_RADIUS * central_angle
-    return distance
-
-
-def _calc_haversine_dist_py_nojit(x0, y0, x1, y1):
+def _calc_haversine_dist_py(x0, y0, x1, y1):
     # x -> longitude
     # y -> latitude
     EARTH_RADIUS = 6372.8  # km
@@ -75,12 +51,18 @@ def _calc_haversine_dist_py_nojit(x0, y0, x1, y1):
     return distance
 
 
+spec = [float64(float64, float64, float64, float64)]
+
+_calc_haversine_dist_vec = vectorize(spec, nopython=True, target="cpu")(
+    _calc_haversine_dist_py
+)
+
 _calc_haversine_dist_cuda = vectorize(spec, target="cuda")(
-    _calc_haversine_dist_py_nojit
+    _calc_haversine_dist_py
 )
 
 _calc_haversine_dist_py_jit = jit(nopython=True, nogil=True, parallel=False)(
-    _calc_haversine_dist_py_nojit
+    _calc_haversine_dist_py
 )
 
 
@@ -104,7 +86,7 @@ def get_calc(udf_type):
             )
         )
     elif udf_type == "py" or udf_type == "py_jit":
-        fn = _calc_haversine_dist_py_nojit
+        fn = _calc_haversine_dist_py
         if udf_type == "py_jit":
             fn = _calc_haversine_dist_py_jit
         type_ = "native"
