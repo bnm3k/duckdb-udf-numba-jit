@@ -9,7 +9,7 @@ from numba import jit, vectorize, float64
 
 
 @jit(nopython=True, nogil=True, parallel=False)
-def _calc_haversine_dist_numba(x0, y0, x1, y1, out, len_):
+def _calc_haversine_dist_vectorized(x0, y0, x1, y1, out, len_):
     # x -> longitude
     # y -> latitude
     EARTH_RADIUS = 6372.8  # km
@@ -67,13 +67,18 @@ _calc_haversine_dist_py_jit = jit(nopython=True, nogil=True, parallel=False)(
 def get_calc(udf_type):
     fn = None
     type_ = "arrow"
-    if udf_type == "numba":
+    if udf_type == "vec_nojit" or udf_type == "vec_jit":
+        _calc = _calc_haversine_dist_vectorized
+        if udf_type == "vec_jit":
+            _calc = jit(nopython=True, nogil=True, parallel=False)(
+                _calc_haversine_dist_vectorized
+            )
 
         def fn_numba(x0, y0, x1, y1):
             len_ = len(x0)
             out = np.empty((len_,))
             vs = tuple(v.to_numpy() for v in (x0, y0, x1, y1))
-            _calc_haversine_dist_numba(*vs, out=out, len_=len_)
+            _calc(*vs, out=out, len_=len_)
             return pa.array(out)
 
         fn = fn_numba
@@ -88,7 +93,7 @@ def get_calc(udf_type):
         if udf_type == "py_jit":
             fn = _calc_haversine_dist_py_jit
         type_ = "native"
-    elif udf_type == "vec":
+    elif udf_type == "numba_vectorize":
 
         def fn_vec(x0, y0, x1, y1):
             out = _calc_haversine_dist_vec(
